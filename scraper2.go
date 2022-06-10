@@ -68,11 +68,11 @@ func getBarks(textBlob string) (int, string) {
 func main() {
 
 	/*f, err := os.Create("barkData2.txt")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+	hello
 	*/
 
 	db, err := gorm.Open(sqlite.Open("newBarkData.db"), &gorm.Config{})
