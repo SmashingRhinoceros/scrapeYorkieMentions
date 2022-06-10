@@ -3,65 +3,84 @@ package main
 import (
 	"fmt"
 	"github.com/gocolly/colly"
-	"log"
-	"os"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 	"strings"
 	"time"
 )
 
-type dog struct {
-	name             string
-	numberOfMentions int
+type Dog struct {
+	gorm.Model
+	Name             string
+	NumberOfMentions int
+	BarkMentions     string
 }
 
-func newDog(name string) *dog {
-	d := dog{name: name}
+func newDog(name string) *Dog {
+	d := Dog{Name: name}
 	return &d
 }
 
-var allDogs []dog
+var allDogs []Dog
 
 var negativeWords = []string{"no", "never", "don't", "rarely", "seldom", "won't"}
 
-func countBarks(textBlob string) int {
+var barkWords = []string{"bark", "yap", "noise", "noisy"}
+
+func getBarks(textBlob string) (int, string) {
 	numberOfMentions := 0
+	var barkMentions string
 	words := strings.Fields(textBlob)
 	negatives := false
 	for i, word := range words {
 
-		if strings.Contains(word, "bark") || strings.Contains(word, "yap") {
-			fmt.Println("NEW BARK", word, i)
-			for n := i - 1; n >= 0 && n >= i-3 && negatives == false; n-- {
-				fmt.Println("i: ", i, words[i], "n: ", n, words[n])
+		for _, bW := range barkWords {
 
-				for _, neg := range negativeWords {
-					if words[n] == neg {
-						negatives = true
-					} else {
+			if strings.Contains(word, bW) {
+				fmt.Println("NEW BARK", word, i)
+				for n := i - 1; n >= 0 && n >= i-3 && negatives == false; n-- {
+					fmt.Println("i: ", i, words[i], "n: ", n, words[n])
+
+					for _, neg := range negativeWords {
+						if words[n] == neg {
+							negatives = true
+						} else {
+						}
 					}
+
+				}
+				if !negatives {
+					numberOfMentions += 1
+					barkMentions += word
+					barkMentions += "_"
 				}
 
-			}
-			if !negatives {
-				numberOfMentions += 1
-			}
+				fmt.Println(word)
 
-			fmt.Println(word)
-
+			}
 		}
 
 	}
 
-	return numberOfMentions
+	return numberOfMentions, barkMentions
 }
 
 func main() {
 
-	f, err := os.Create("barkData.txt")
+	/*f, err := os.Create("barkData2.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer f.Close()
+
+	*/
+
+	db, err := gorm.Open(sqlite.Open("newBarkData.db"), &gorm.Config{})
+	if err != nil {
+		panic("Failed to connect to database")
+	}
+
+	db.AutoMigrate(&Dog{})
 
 	//Link collector
 	linkCollector := colly.NewCollector(
@@ -86,14 +105,14 @@ func main() {
 
 	linkCollector.OnHTML("a.list-item-title", func(e *colly.HTMLElement) {
 		link := e.Attr("href")
-		d := dog{name: e.Text}
+		d := Dog{Name: e.Text}
 		allDogs = append(allDogs, d)
 
 		barkCollector.Visit(link)
 	})
 
 	linkCollector.OnScraped(func(r *colly.Response) {
-		fmt.Fprintln(f, "All done!")
+
 		fmt.Println("Finished", r.Request.URL)
 	})
 
@@ -115,26 +134,29 @@ func main() {
 
 		textBlob := e.Text
 
-		numberOfMentions := countBarks(textBlob)
+		numberOfMentions, barkMentions := getBarks(textBlob)
 
-		var nowDog *dog = &allDogs[len(allDogs)-1]
-		nowDog.numberOfMentions += numberOfMentions
+		var nowDog *Dog = &allDogs[len(allDogs)-1]
+		nowDog.NumberOfMentions += numberOfMentions
+		nowDog.BarkMentions += barkMentions
 	})
 
 	barkCollector.OnHTML("div.breed-data-item-content", func(e *colly.HTMLElement) {
 		textBlob := e.Text
 
-		numberOfMentions := countBarks(textBlob)
+		numberOfMentions, barkMentions := getBarks(textBlob)
 
-		var nowDog *dog = &allDogs[len(allDogs)-1]
-		nowDog.numberOfMentions += numberOfMentions
+		var nowDog *Dog = &allDogs[len(allDogs)-1]
+		nowDog.NumberOfMentions += numberOfMentions
+		nowDog.BarkMentions += barkMentions
 
 	})
 
 	barkCollector.OnScraped(func(r *colly.Response) {
 		fmt.Println("Finished", r.Request.URL)
 		fmt.Println(allDogs)
-		fmt.Fprintln(f, allDogs[len(allDogs)-1])
+		var nowDog = allDogs[len(allDogs)-1]
+		db.Create(&Dog{Name: nowDog.Name, NumberOfMentions: nowDog.NumberOfMentions, BarkMentions: nowDog.BarkMentions})
 
 	})
 
