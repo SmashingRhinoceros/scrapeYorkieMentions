@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"github.com/gocolly/colly"
+	"log"
+	"os"
 	"strings"
 	"time"
 )
@@ -19,7 +21,47 @@ func newDog(name string) *dog {
 
 var allDogs []dog
 
+var negativeWords = []string{"no", "never", "don't", "rarely", "seldom", "won't"}
+
+func countBarks(textBlob string) int {
+	numberOfMentions := 0
+	words := strings.Fields(textBlob)
+	negatives := false
+	for i, word := range words {
+
+		if strings.Contains(word, "bark") || strings.Contains(word, "yap") {
+			fmt.Println("NEW BARK", word, i)
+			for n := i - 1; n >= 0 && n >= i-3 && negatives == false; n-- {
+				fmt.Println("i: ", i, words[i], "n: ", n, words[n])
+
+				for _, neg := range negativeWords {
+					if words[n] == neg {
+						negatives = true
+					} else {
+					}
+				}
+
+			}
+			if !negatives {
+				numberOfMentions += 1
+			}
+
+			fmt.Println(word)
+
+		}
+
+	}
+
+	return numberOfMentions
+}
+
 func main() {
+
+	f, err := os.Create("barkData.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
 
 	//Link collector
 	linkCollector := colly.NewCollector(
@@ -44,11 +86,15 @@ func main() {
 
 	linkCollector.OnHTML("a.list-item-title", func(e *colly.HTMLElement) {
 		link := e.Attr("href")
-		fmt.Println(link)
 		d := dog{name: e.Text}
 		allDogs = append(allDogs, d)
-		fmt.Println(allDogs)
+
 		barkCollector.Visit(link)
+	})
+
+	linkCollector.OnScraped(func(r *colly.Response) {
+		fmt.Fprintln(f, "All done!")
+		fmt.Println("Finished", r.Request.URL)
 	})
 
 	//Bark callbacks
@@ -66,61 +112,29 @@ func main() {
 	})
 
 	barkCollector.OnHTML("div.breeds-single-intro", func(e *colly.HTMLElement) {
-		textBlob := ""
-		numberOfMentions := 0
-		e.ForEach("p", func(_ int, element *colly.HTMLElement) {
-			textBlob += element.Text
-		})
 
-		words := strings.Fields(textBlob)
+		textBlob := e.Text
 
-		for _, word := range words {
-			if strings.Contains(word, "bark") {
-				fmt.Println(word)
-				numberOfMentions += 1
-			}
-			if strings.Contains(word, "yap") {
-				fmt.Println(word)
-				numberOfMentions += 1
-			}
+		numberOfMentions := countBarks(textBlob)
 
-		}
-		fmt.Println(numberOfMentions)
 		var nowDog *dog = &allDogs[len(allDogs)-1]
 		nowDog.numberOfMentions += numberOfMentions
-
-		fmt.Println("NOWDOG", nowDog)
 	})
 
-	barkCollector.OnHTML("ul.breed-data js-accordion item-expandable-container profile-descriptions-list", func(e *colly.HTMLElement) {
-		fmt.Println("HELLO", e.Name)
+	barkCollector.OnHTML("div.breed-data-item-content", func(e *colly.HTMLElement) {
+		textBlob := e.Text
 
-		textBlob := ""
-		numberOfMentions := 0
-		e.ForEach("li.breed-data-item js-accordion-item item-expandable-content", func(_ int, li *colly.HTMLElement) {
-			li.ForEach("div.breed-data-item-content js-breed-data-section", func(_ int, div *colly.HTMLElement) {
-				div.ForEach("p", func(_ int, p *colly.HTMLElement) {
-					textBlob += div.Text
-				})
-			})
-		})
-
-		words := strings.Fields(textBlob)
-
-		for _, word := range words {
-			if strings.Contains(word, "bark") {
-				fmt.Println(word)
-				numberOfMentions += 1
-			}
-			if strings.Contains(word, "yap") {
-				fmt.Println(word)
-				numberOfMentions += 1
-			}
-		}
+		numberOfMentions := countBarks(textBlob)
 
 		var nowDog *dog = &allDogs[len(allDogs)-1]
 		nowDog.numberOfMentions += numberOfMentions
-		fmt.Println("NOWDOG", nowDog)
+
+	})
+
+	barkCollector.OnScraped(func(r *colly.Response) {
+		fmt.Println("Finished", r.Request.URL)
+		fmt.Println(allDogs)
+		fmt.Fprintln(f, allDogs[len(allDogs)-1])
 
 	})
 
