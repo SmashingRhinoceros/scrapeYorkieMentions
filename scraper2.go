@@ -9,23 +9,10 @@ import (
 	"time"
 )
 
-type Dog struct {
-	gorm.Model
-	Name             string
-	NumberOfMentions int
-	BarkMentions     string
-}
-
 func newDog(name string) *Dog {
 	d := Dog{Name: name}
 	return &d
 }
-
-var allDogs []Dog
-
-var negativeWords = []string{"no", "never", "don't", "rarely", "seldom", "won't"}
-
-var barkWords = []string{"bark", "yap", "noise", "noisy"}
 
 func getBarks(textBlob string) (int, string) {
 	numberOfMentions := 0
@@ -66,14 +53,6 @@ func getBarks(textBlob string) (int, string) {
 }
 
 func main() {
-
-	/*f, err := os.Create("barkData2.txt")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer f.Close()
-	hello
-	*/
 
 	db, err := gorm.Open(sqlite.Open("newBarkData.db"), &gorm.Config{})
 	if err != nil {
